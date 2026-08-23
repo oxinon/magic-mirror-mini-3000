@@ -1,4 +1,4 @@
-# Magic Mirror Mini – T-Display S3
+# Magic Mirror Mini 3000 – T-Display S3
 
 *[Deutsche Version / German version: README_de.md](README_de.md)*
 
