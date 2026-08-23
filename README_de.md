@@ -59,6 +59,11 @@ gezielt die Variante **`GENERIC_S3_OCT_16M`** (Octal-SPIRAM, 16 MB Flash),
 nicht `GENERIC_S3_16M` (das ist Quad-SPIRAM und funktioniert auf diesem
 Board nicht richtig).
 
+**Eine bekannt funktionierende Kopie genau dieser Firmware liegt bereits
+im [`firmware/`](firmware/)-Ordner dieses Repos bei**, falls sich die
+Struktur der Original-Releases mal ändert – Details und der Link zurück
+zur Originalquelle stehen in [`firmware/README_de.md`](firmware/README_de.md).
+
 ### Flashen
 
 ```bash

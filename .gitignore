@@ -10,8 +10,5 @@ __pycache__/
 .vscode/
 .idea/
 
-# Firmware-Binaries (zu gross fuers Repo, gehoeren nicht zum Quellcode)
-*.bin
-
 # mpremote/Thonny-Sync-Marker, falls vorhanden
 .mpy-cross/
