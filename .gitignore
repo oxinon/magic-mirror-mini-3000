@@ -1,0 +1,17 @@
+# Auf dem Geraet erzeugte Laufzeit-Konfiguration -- enthaelt WLAN-Passwort
+# und private URLs (iCal, DEFCON-API-Key etc.). NIEMALS committen.
+config.json
+
+# Python / Editor-Artefakte
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+.vscode/
+.idea/
+
+# Firmware-Binaries (zu gross fuers Repo, gehoeren nicht zum Quellcode)
+*.bin
+
+# mpremote/Thonny-Sync-Marker, falls vorhanden
+.mpy-cross/
