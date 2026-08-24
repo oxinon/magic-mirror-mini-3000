@@ -9,10 +9,10 @@ settings are configured through a built-in web UI — no cloud service, no
 app, no API keys anywhere.
 
 This is a compact port of a larger Docker-based Magic Mirror dashboard
-project; the picture below shows that original, bigger dashboard which
-inspired the widget selection and data sources used here.
+project, adapted to run standalone on a single small ESP32-S3 board. The
+picture below shows all eleven widgets running on the actual device.
 
-![Original Magic Mirror dashboard that inspired this project](pictures/1.png)
+![All widgets running on the T-Display S3](pictures/1.png)
 
 ## Widgets
 
@@ -23,10 +23,12 @@ inspired the widget selection and data sources used here.
 | Air Quality | Open-Meteo Air Quality | EU-AQI (color-coded), PM2.5, PM10, ozone |
 | Official Warnings | warnung.bund.de (NINA/BBK, Germany) | DWD severe weather + civil protection alerts for the selected district |
 | Calendar | Google Calendar (private iCal address) | Up to 5 upcoming events, 14-day look-ahead, no RRULE expansion |
+| News | RSS/Atom feeds | Up to 3 sources, rotated one per refresh cycle, shown as a scrolling ticker |
 | Crypto | CoinGecko | Up to 4 coins, price + 24h change |
 | Stocks | Yahoo Finance chart endpoint | Up to 4 symbols, price + 24h change |
 | Apocalypse EWS | ews.kylemcdonald.net snapshot feed | Alert level 1–5, tracked-jet count vs. learned baseline |
-| DEFCON | your own JSON endpoint (e.g. ai-defcon.com) | Region list, color-coded (lower number = more critical) |
+| DEFCON | your own JSON endpoint on [ai-defcon.com](https://ai-defcon.com) | Region list, color-coded (lower number = more critical) |
+| Compliments | local only, no network | Random encouraging message from a list you edit in the web UI |
 
 Every widget can be turned on or off individually in the web UI. All data
 sources are free and require no API key.
@@ -112,7 +114,9 @@ if you're unsure.
    and your DEFCON endpoint URL.
 
 The web UI is always reachable — at `192.168.4.1` in setup-AP mode, or at
-the device's regular IP once connected to your WiFi.
+the device's regular IP once connected to your WiFi. The "Setup Access
+Point" card lets you change the AP's own SSID/password (used when there's
+no working WiFi) directly from the web UI as well.
 
 ## Buttons
 
@@ -147,6 +151,33 @@ it tends to be more reliable. Note: city-states (Hamburg, Berlin, Bremen)
 have no separate "district" entry in the underlying lookup API since
 there's no Kreis level above the city itself; the search falls back to the
 municipality code in that case, which is handled automatically.
+
+## Setting up DEFCON
+
+The DEFCON widget is built for [ai-defcon.com](https://ai-defcon.com), a
+project of mine that assesses regional risk levels and exposes the result
+as a simple JSON API — see that site for how to get access and generate
+your own endpoint URL and (optional) API key.
+
+Any endpoint returning this JSON shape works, though, not just
+ai-defcon.com:
+
+```json
+{
+  "updated": "2026-08-18T10:00:00Z",
+  "regions": [
+    { "id": "germany", "name": "Germany", "value": 3.4 },
+    { "id": "usa",     "name": "USA",     "value": 3.8 },
+    { "id": "russia",  "name": "Russia",  "value": 1.8 }
+  ]
+}
+```
+
+`id` is optional, `name` and `value` are required. `value` follows the
+military DEFCON convention — **lower means more critical** (≤2 shown red,
+2–3.5 amber, >3.5 green). `updated` isn't currently read by the widget.
+Enter the endpoint URL (and API key, if yours needs one — sent as an
+`X-API-Key` header) in the "DEFCON" card in the web UI.
 
 ## Project structure
 

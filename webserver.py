@@ -69,6 +69,9 @@ INDEX_HTML = """<!DOCTYPE html>
   <input id="w_calendar" type="checkbox" style="width:auto"> Calendar
 </label>
 <label style="display:flex;align-items:center;gap:8px;margin-top:8px">
+  <input id="w_news" type="checkbox" style="width:auto"> News
+</label>
+<label style="display:flex;align-items:center;gap:8px;margin-top:8px">
   <input id="w_crypto" type="checkbox" style="width:auto"> Crypto
 </label>
 <label style="display:flex;align-items:center;gap:8px;margin-top:8px">
@@ -80,6 +83,9 @@ INDEX_HTML = """<!DOCTYPE html>
 <label style="display:flex;align-items:center;gap:8px;margin-top:8px">
   <input id="w_defcon" type="checkbox" style="width:auto"> DEFCON
 </label>
+<label style="display:flex;align-items:center;gap:8px;margin-top:8px">
+  <input id="w_compliments" type="checkbox" style="width:auto"> Compliments
+</label>
 </div>
 
 <div class="card">
@@ -88,8 +94,18 @@ INDEX_HTML = """<!DOCTYPE html>
 <input id="wifi_ssid">
 <label>Password</label>
 <input id="wifi_password" type="password">
-<div class="hint">Without a valid WiFi network, the device opens this setup access point again on next restart.</div>
+<div class="hint">Without a valid WiFi network, the device opens the setup access point below again on next restart.</div>
 </div>
+
+<div class="card">
+<h2>Setup Access Point</h2>
+<div class="hint">Name/password of the access point the device opens when it has no working WiFi (or you're seeing this page through it right now).</div>
+<label>AP SSID</label>
+<input id="ap_ssid">
+<label>AP Password (min. 8 characters, leave short/empty for an open network)</label>
+<input id="ap_password">
+</div>
+
 
 <div class="card">
 <h2>Clock</h2>
@@ -141,8 +157,32 @@ INDEX_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="card">
+<h2>News (RSS)</h2>
+<div class="hint">Up to 3 feeds, rotated one per refresh cycle. Shown as a scrolling ticker, so headline length doesn't matter.</div>
+<div class="row">
+  <div><label>Source 1 name</label><input id="news1_name"></div>
+  <div style="flex:2"><label>Source 1 feed URL</label><input id="news1_url"></div>
+</div>
+<div class="row">
+  <div><label>Source 2 name</label><input id="news2_name"></div>
+  <div style="flex:2"><label>Source 2 feed URL</label><input id="news2_url"></div>
+</div>
+<div class="row">
+  <div><label>Source 3 name</label><input id="news3_name"></div>
+  <div style="flex:2"><label>Source 3 feed URL</label><input id="news3_url"></div>
+</div>
+</div>
+
+<div class="card">
+<h2>Compliments</h2>
+<div class="hint">One message per line. Runs locally, no network needed. A random one is shown each time.</div>
+<textarea id="compliments_messages" rows="6" style="width:100%; box-sizing:border-box; padding:8px; margin-top:4px; border-radius:6px; border:1px solid #333; background:#1c1f26; color:#eee; font-size:0.95rem;"></textarea>
+</div>
+
+<div class="card">
 <h2>Crypto</h2>
 <label>Coin IDs (CoinGecko, comma-separated, e.g. bitcoin,ethereum,solana)</label>
+
 <input id="crypto_symbols">
 <label>Currency</label>
 <select id="crypto_currency"><option value="usd">USD</option><option value="eur">EUR</option></select>
@@ -156,8 +196,9 @@ INDEX_HTML = """<!DOCTYPE html>
 
 <div class="card">
 <h2>DEFCON</h2>
-<label>Source URL (JSON, e.g. your ai-defcon.com/defcon-assistant instance)</label>
-<input id="defcon_url" placeholder="http://defcon-assistant:5028/api/status.json">
+<div class="hint">Built for <a href="https://ai-defcon.com" target="_blank" style="color:#9ad">ai-defcon.com</a> — see that site for how to get your endpoint URL and API key. Any endpoint returning the same JSON shape works too.</div>
+<label>Source URL</label>
+<input id="defcon_url" placeholder="https://ai-defcon.com/api/status.json">
 <label>API key (optional, sent as X-API-Key header)</label>
 <input id="defcon_api_key" type="password">
 </div>
@@ -176,7 +217,7 @@ INDEX_HTML = """<!DOCTYPE html>
 <script>
 let weatherSel = null, aqSel = null, warnSel = null;
 
-const WIDGET_NAMES = ['clock', 'weather', 'air_quality', 'warnings', 'calendar', 'crypto', 'stocks', 'ews', 'defcon'];
+const WIDGET_NAMES = ['clock', 'weather', 'air_quality', 'warnings', 'calendar', 'news', 'crypto', 'stocks', 'ews', 'defcon', 'compliments'];
 
 async function load() {
   const cfg = await (await fetch('/api/config')).json();
@@ -189,6 +230,11 @@ async function load() {
 
   document.getElementById('wifi_ssid').value = cfg.wifi.ssid || '';
   document.getElementById('wifi_password').value = cfg.wifi.password || '';
+
+  const ap = cfg.ap || {};
+  document.getElementById('ap_ssid').value = ap.ssid || '';
+  document.getElementById('ap_password').value = ap.password || '';
+
   document.getElementById('utc_offset').value = cfg.general.utc_offset;
   document.getElementById('hour24').value = String(cfg.general.hour24);
   document.getElementById('dst_auto').checked = cfg.general.dst_auto;
@@ -213,6 +259,16 @@ async function load() {
   document.getElementById('calendar_url').value = cal.icalUrl || '';
   document.getElementById('calendar_max').value = cal.maxEvents || 5;
   document.getElementById('calendar_days').value = cal.daysAhead || 14;
+
+  const news = (cfg.widgets.news && cfg.widgets.news.sources) || [];
+  for (let i = 0; i < 3; i++) {
+    const src = news[i] || {};
+    document.getElementById('news' + (i + 1) + '_name').value = src.name || '';
+    document.getElementById('news' + (i + 1) + '_url').value = src.feedUrl || '';
+  }
+
+  const compliments = cfg.widgets.compliments || {};
+  document.getElementById('compliments_messages').value = (compliments.messages || []).join(String.fromCharCode(10));
 
   const crypto = cfg.widgets.crypto || {};
   document.getElementById('crypto_symbols').value = (crypto.symbols || []).join(',');
@@ -294,6 +350,11 @@ async function save() {
 
   cfg.wifi.ssid = document.getElementById('wifi_ssid').value;
   cfg.wifi.password = document.getElementById('wifi_password').value;
+
+  cfg.ap = cfg.ap || {};
+  cfg.ap.ssid = document.getElementById('ap_ssid').value.trim() || 'MagicMirror-Setup';
+  cfg.ap.password = document.getElementById('ap_password').value;
+
   cfg.general.utc_offset = parseInt(document.getElementById('utc_offset').value || '0');
   cfg.general.hour24 = document.getElementById('hour24').value === 'true';
   cfg.general.dst_auto = document.getElementById('dst_auto').checked;
@@ -310,6 +371,20 @@ async function save() {
   cfg.widgets.calendar.icalUrl = document.getElementById('calendar_url').value.trim();
   cfg.widgets.calendar.maxEvents = parseInt(document.getElementById('calendar_max').value || '5');
   cfg.widgets.calendar.daysAhead = parseInt(document.getElementById('calendar_days').value || '14');
+
+  const newsSources = [];
+  for (let i = 1; i <= 3; i++) {
+    const srcName = document.getElementById('news' + i + '_name').value.trim();
+    const srcUrl = document.getElementById('news' + i + '_url').value.trim();
+    if (srcUrl) newsSources.push({ name: srcName || ('Source ' + i), feedUrl: srcUrl });
+  }
+  cfg.widgets.news = cfg.widgets.news || {};
+  cfg.widgets.news.sources = newsSources;
+  cfg.widgets.news.max_items = cfg.widgets.news.max_items || 5;
+
+  cfg.widgets.compliments = cfg.widgets.compliments || {};
+  cfg.widgets.compliments.messages = document.getElementById('compliments_messages').value
+    .split(String.fromCharCode(10)).map(s => s.trim()).filter(Boolean);
 
   cfg.widgets.crypto = cfg.widgets.crypto || {};
   cfg.widgets.crypto.symbols = document.getElementById('crypto_symbols').value

@@ -9,10 +9,11 @@ Widget-Einstellungen werden über ein eingebautes Web-UI konfiguriert –
 kein Cloud-Dienst, keine App, keine API-Keys nötig.
 
 Dies ist eine kompakte Portierung eines größeren, Docker-basierten Magic-
-Mirror-Dashboard-Projekts; das Bild unten zeigt dieses größere Original,
-das die Widget-Auswahl und Datenquellen hier inspiriert hat.
+Mirror-Dashboard-Projekts, angepasst für den eigenständigen Betrieb auf
+einem einzelnen kleinen ESP32-S3-Board. Das Bild unten zeigt alle elf
+Widgets in Aktion auf dem echten Gerät.
 
-![Original-Magic-Mirror-Dashboard, das dieses Projekt inspiriert hat](pictures/1.png)
+![Alle Widgets in Aktion auf dem T-Display S3](pictures/1.png)
 
 ## Widgets
 
@@ -23,10 +24,12 @@ das die Widget-Auswahl und Datenquellen hier inspiriert hat.
 | Luftqualität | Open-Meteo Air Quality | EU-AQI (farbcodiert), PM2.5, PM10, Ozon |
 | Amtliche Warnungen | warnung.bund.de (NINA/BBK) | DWD-Unwetter + Katastrophenschutz für den gewählten Kreis |
 | Kalender | Google Kalender (private iCal-Adresse) | Bis zu 5 Termine, 14 Tage Vorschau, keine RRULE-Expansion |
+| News | RSS/Atom-Feeds | Bis zu 3 Quellen, rotieren pro Refresh-Zyklus, als Lauftext angezeigt |
 | Crypto | CoinGecko | Bis zu 4 Coins, Kurs + 24h-Änderung |
 | Aktienkurse | Yahoo-Finance-Chart-Endpunkt | Bis zu 4 Symbole, Kurs + 24h-Änderung |
 | Apocalypse EWS | ews.kylemcdonald.net (Snapshot-Feed) | Warnstufe 1–5, Flugzeuganzahl vs. gelernter Normalwert |
-| DEFCON | eigene JSON-API (z. B. ai-defcon.com) | Regionen-Liste, farbcodiert (niedriger = kritischer) |
+| DEFCON | eigene JSON-API auf [ai-defcon.com](https://ai-defcon.com) | Regionen-Liste, farbcodiert (niedriger = kritischer) |
+| Compliments | rein lokal, kein Netzwerk | Zufälliger, aufmunternder Spruch aus einer im Web-UI editierbaren Liste |
 
 Jedes Widget lässt sich einzeln im Web-UI ein-/ausschalten. Alle
 Datenquellen sind kostenlos und brauchen keinen API-Key.
@@ -115,7 +118,9 @@ Firmware-Build bereits ein eingefrorenes Modul. Im Zweifel im REPL mit
 
 Das Web-UI ist immer erreichbar – unter `192.168.4.1` im Setup-AP-Modus,
 oder unter der regulären Geräte-IP, sobald es mit deinem WLAN verbunden
-ist.
+ist. In der Karte "Setup Access Point" lassen sich auch SSID/Passwort des
+eigenen Access Points (der bei fehlendem WLAN geöffnet wird) direkt im
+Web-UI ändern.
 
 ## Tasten
 
@@ -153,6 +158,35 @@ funktioniert zuverlässiger. Hinweis: Stadtstaaten (Hamburg, Berlin,
 Bremen) haben in der zugrunde liegenden Such-API kein eigenes
 "district"-Feld, da es über der Stadt selbst keine Kreis-Ebene gibt – die
 Suche fällt in diesem Fall automatisch auf den Gemeinde-Code zurück.
+
+## DEFCON einrichten
+
+Das DEFCON-Widget ist für [ai-defcon.com](https://ai-defcon.com) gebaut,
+ein eigenes Projekt von mir, das regionale Risikoeinschätzungen liefert
+und das Ergebnis als einfache JSON-API bereitstellt – dort steht, wie man
+Zugang bekommt und sich eine eigene Endpunkt-URL (und optional einen
+API-Key) erzeugt.
+
+Es funktioniert aber grundsätzlich jeder Endpunkt, der dieses JSON-Format
+liefert, nicht nur ai-defcon.com:
+
+```json
+{
+  "updated": "2026-08-18T10:00:00Z",
+  "regions": [
+    { "id": "germany", "name": "Germany", "value": 3.4 },
+    { "id": "usa",     "name": "USA",     "value": 3.8 },
+    { "id": "russia",  "name": "Russia",  "value": 1.8 }
+  ]
+}
+```
+
+`id` ist optional, `name` und `value` sind Pflicht. `value` folgt der
+militärischen DEFCON-Konvention – **niedriger ist kritischer** (≤2 rot,
+2–3,5 amber, >3,5 grün). `updated` wird vom Widget aktuell nicht
+ausgewertet. Endpunkt-URL (und API-Key, falls deiner einen braucht –
+wird als `X-API-Key`-Header mitgeschickt) in der Karte "DEFCON" im
+Web-UI eintragen.
 
 ## Projektstruktur
 

@@ -57,6 +57,17 @@ DEFAULT_CONFIG = {
             "maxEvents": 5,
             "daysAhead": 14,
         },
+        "news": {
+            "enabled": True,
+            # Bis zu 3 Quellen, wird bei jedem Refresh reihum gewechselt
+            # -- Standardwerte 1:1 aus der README des Docker-Projekts.
+            "sources": [
+                {"name": "Tagesschau", "feedUrl": "https://www.tagesschau.de/xml/rss2/"},
+                {"name": "Spiegel", "feedUrl": "https://www.spiegel.de/schlagzeilen/index.rss"},
+                {"name": "Heise", "feedUrl": "https://www.heise.de/rss/heise-atom.xml"},
+            ],
+            "max_items": 5,
+        },
         "crypto": {
             "enabled": True,
             "symbols": ["bitcoin", "ethereum"],
@@ -73,6 +84,17 @@ DEFAULT_CONFIG = {
             "enabled": True,
             "url": "",
             "api_key": "",
+        },
+        "compliments": {
+            "enabled": True,
+            "messages": [
+                "You look great today!",
+                "Your smile lights up the room!",
+                "You're doing an amazing job!",
+                "Today is going to be a good day!",
+                "You've got this!",
+                "Someone out there thinks you're awesome!",
+            ],
         },
     },
 }

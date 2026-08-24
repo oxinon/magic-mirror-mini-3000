@@ -1,15 +1,19 @@
 """The widgets: weather, air quality, official warnings (NINA), NTP clock,
-crypto, stocks, Apocalypse EWS and DEFCON. Data sources match the Docker
-Magic Mirror project 1:1 -- no API key needed anywhere:
+news (RSS), crypto, stocks, Apocalypse EWS, DEFCON and compliments. Data
+sources match the Docker Magic Mirror project 1:1 -- no API key needed
+anywhere:
   - Weather/air quality: Open-Meteo
   - Warnings: warnung.bund.de (NINA / BBK)
+  - News: RSS/Atom feeds (own lightweight parser, no feedparser on device)
   - Crypto: CoinGecko
   - Stocks: Yahoo Finance chart endpoint
   - EWS: ews.kylemcdonald.net public snapshot feed
   - DEFCON: user's own JSON endpoint (e.g. ai-defcon.com/defcon-assistant)
+  - Compliments: purely local, no network needed
 """
 
 import time
+import random
 import urequests
 import ntp_clock
 import display as disp
@@ -277,6 +281,100 @@ def fetch_ews(cfg):
         }
     except Exception as e:
         return {"ok": False, "msg": "EWS unavailable: {}".format(e)}
+
+
+def _tag_content(text, tag, start=0):
+    """Sehr einfacher, hand-geschriebener XML-Tag-Extraktor (kein XML-Parser
+    in MicroPython eingebaut). Reicht fuer die flache Struktur von RSS 2.0."""
+    open_tag = "<" + tag
+    close_tag = "</" + tag + ">"
+    i = text.find(open_tag, start)
+    if i == -1:
+        return None, -1
+    i = text.find(">", i)
+    if i == -1:
+        return None, -1
+    i += 1
+    j = text.find(close_tag, i)
+    if j == -1:
+        return None, -1
+    return text[i:j], j + len(close_tag)
+
+
+_TRANSLITERATE = {
+    "\u00e4": "ae", "\u00f6": "oe", "\u00fc": "ue",
+    "\u00c4": "Ae", "\u00d6": "Oe", "\u00dc": "Ue",
+    "\u00df": "ss",
+    "\u00e9": "e", "\u00e8": "e", "\u00ea": "e", "\u00e0": "a", "\u00e2": "a",
+    "\u00e7": "c", "\u00f1": "n",
+    "\u2019": "'", "\u2018": "'", "\u201c": '"', "\u201d": '"',
+    "\u2013": "-", "\u2014": "-", "\u2026": "...",
+}
+
+
+def _to_ascii(s):
+    """Der Bitmap-Font des Displays erwartet einfache Einzelbyte-Zeichen.
+    UTF-8-Mehrbyte-Zeichen (Umlaute, Anfuehrungszeichen, Gedankenstriche
+    etc.) bringen das Zeichnen sonst mitten in der Zeile zum Stehen --
+    daher vor der Anzeige in ASCII-Naeherungen umwandeln."""
+    for k, v in _TRANSLITERATE.items():
+        if k in s:
+            s = s.replace(k, v)
+    # alles, was danach noch nicht ASCII ist, durch "?" ersetzen statt
+    # den Renderer damit zum Stocken zu bringen
+    out = []
+    for ch in s:
+        out.append(ch if ord(ch) < 128 else "?")
+    return "".join(out)
+
+
+def _clean_xml_text(s):
+    s = s.strip()
+    if s.startswith("<![CDATA[") and s.endswith("]]>"):
+        s = s[9:-3]
+    s = s.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    s = s.replace("&quot;", '"').replace("&#39;", "'").replace("&apos;", "'")
+    return _to_ascii(s.strip())
+
+
+_news_source_idx = 0
+
+
+def fetch_news(cfg):
+    """Holt Schlagzeilen von einer RSS/Atom-Quelle. Reihum wird bei jedem
+    Refresh eine andere konfigurierte Quelle geholt (wie das Original-
+    Docker-Projekt), das Ergebnis wird als Lauftext angezeigt -- dadurch
+    ist die Zeilenlaenge der Ueberschriften egal, es passt immer."""
+    global _news_source_idx
+    n = cfg["widgets"]["news"]
+    sources = [s for s in (n.get("sources") or []) if (s.get("feedUrl") or "").strip()]
+    if not sources:
+        return {"ok": False, "msg": "No source configured", "items": [], "source_name": ""}
+
+    idx = _news_source_idx % len(sources)
+    _news_source_idx += 1
+    src = sources[idx]
+    name = src.get("name") or "News"
+    url = src["feedUrl"].strip()
+    max_items = int(n.get("max_items", 5) or 5)
+
+    try:
+        r = urequests.get(url, timeout=12)
+        text = r.text
+        r.close()
+        items = []
+        pos = 0
+        while len(items) < max_items:
+            block, next_pos = _tag_content(text, "item", pos)
+            if block is None:
+                break
+            title, _ = _tag_content(block, "title")
+            if title:
+                items.append(_clean_xml_text(title))
+            pos = next_pos
+        return {"ok": True, "items": items, "source_name": name}
+    except Exception as e:
+        return {"ok": False, "msg": "News error: {}".format(e), "items": [], "source_name": name}
 
 
 def _defcon_severity(value):
@@ -757,3 +855,100 @@ def draw_clock(d, cfg):
         d.text_centered("Daylight Saving Time", disp.WIDTH // 2, 136, disp.ACCENT, size="small")
     if not ntp_clock.is_synced():
         d.text_centered("NTP not synced", disp.WIDTH // 2, 136, disp.ALERT_RED, size="small")
+
+
+# ---------------------------------------------------------------------
+# News-Ticker: laeuft als horizontaler Lauftext durch, damit egal wie
+# lang eine Schlagzeile ist, sie nie abgeschnitten werden muss -- passt
+# damit garantiert gut aufs kleine Display. main.py ruft draw_news() alle
+# ~150ms erneut auf, solange News das aktuell gezeigte Widget ist.
+#
+# WICHTIG: der s3lcd-Text-Renderer kommt mit NEGATIVEN x-Koordinaten nicht
+# klar -- er "wrapped" den Text zyklisch statt ihn sauber abzuschneiden
+# (das Ende landet vorn). Deshalb wird hier NIE mit negativem x gezeichnet,
+# sondern zeichenweise durch einen doppelt aneinandergehaengten Text
+# geschoben (immer bei x=0), das ist fuer diesen Treiber sicher.
+# ---------------------------------------------------------------------
+_news_char_offset = 0
+_news_ticker_text = ""
+TICKER_SEPARATOR = "     \u2022     "
+TICKER_CHAR_W = 16       # Breite eines Zeichens im "medium"-Bitmap-Font
+TICKER_CHARS_PER_TICK = 1  # main.py ruft alle ~150ms auf -> ca. 107 Zeichen/s * 16px = ~107px/s
+TICKER_Y = 82
+
+
+def _build_ticker_text(items, source_name):
+    body = TICKER_SEPARATOR.join(items) if items else "No headlines"
+    if source_name:
+        body = source_name.upper() + ":  " + body
+    return body + "          "  # kleine Luecke, bevor der Text von vorn beginnt
+
+
+def draw_news(d, data):
+    global _news_char_offset, _news_ticker_text
+    _draw_header(d, "News")
+
+    if not data.get("ok"):
+        _draw_error(d, "News", data.get("msg", "Error"))
+        _news_char_offset = 0
+        return
+
+    text = _build_ticker_text(data.get("items", []), data.get("source_name", ""))
+
+    if text != _news_ticker_text:
+        _news_ticker_text = text
+        _news_char_offset = 0
+
+    # WICHTIG: hier NICHT mehr Zeichen zeichnen als tatsaechlich auf den
+    # Bildschirm passen -- der Treiber schneidet Ueberschuss ueber die
+    # Displaybreite hinaus nicht sauber ab, sondern wickelt ihn an den
+    # linken Rand (derselbe Wrap-Effekt wie bei negativem x). 320/16=20
+    # passt exakt, keine Sicherheitsmarge noetig.
+    visible_chars = disp.WIDTH // TICKER_CHAR_W
+    reps = (visible_chars // max(1, len(text))) + 2
+    doubled = text * reps  # nahtloser Uebergang beim Wiederholen, auch bei kurzen Texten
+    start = _news_char_offset % len(text)
+    visible_text = doubled[start:start + visible_chars]
+
+    d.text(visible_text, 0, TICKER_Y, disp.FG, size="medium")
+
+    _news_char_offset += TICKER_CHARS_PER_TICK
+
+
+# ---------------------------------------------------------------------
+# Compliments: rein lokal, kein Netzwerk noetig -- zufaelliger Spruch aus
+# einer im Web-UI frei editierbaren Liste.
+# ---------------------------------------------------------------------
+
+def _wrap_lines(d, text, size, max_width, max_lines=3):
+    words = text.split(" ")
+    lines = []
+    cur = ""
+    for word in words:
+        trial = (cur + " " + word).strip()
+        if d.text_width(trial, size) <= max_width:
+            cur = trial
+        else:
+            if cur:
+                lines.append(cur)
+            cur = word
+        if len(lines) >= max_lines:
+            break
+    if cur and len(lines) < max_lines:
+        lines.append(cur)
+    return lines
+
+
+def draw_compliments(d, cfg):
+    _draw_header(d, "Compliments")
+
+    comp_cfg = cfg.get("widgets", {}).get("compliments", {})
+    messages = comp_cfg.get("messages") or ["You're doing great!"]
+    msg = messages[random.randrange(len(messages))]
+
+    lines = _wrap_lines(d, msg, "medium", disp.WIDTH - 40, max_lines=3)
+    total_h = len(lines) * 22
+    y = max(56, (disp.HEIGHT - total_h) // 2)
+    for line in lines:
+        d.text_centered(line, disp.WIDTH // 2, y, disp.ACCENT, size="medium")
+        y += 22
