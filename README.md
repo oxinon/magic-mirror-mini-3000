@@ -118,6 +118,13 @@ the device's regular IP once connected to your WiFi. The "Setup Access
 Point" card lets you change the AP's own SSID/password (used when there's
 no working WiFi) directly from the web UI as well.
 
+**Be patient on the very first boot after connecting to WiFi** (and after
+every restart): the device fetches fresh data for all eleven widgets
+before it starts cycling through them, which can take a little while
+depending on your connection and how many widgets are enabled. The clock
+appears quickly, but the others only show up once that initial fetch has
+finished — this is normal, not a hang.
+
 ## Buttons
 
 The board's two built-in buttons (GPIO0/BOOT and GPIO14) let you page

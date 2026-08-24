@@ -122,6 +122,13 @@ ist. In der Karte "Setup Access Point" lassen sich auch SSID/Passwort des
 eigenen Access Points (der bei fehlendem WLAN geöffnet wird) direkt im
 Web-UI ändern.
 
+**Etwas Geduld beim allerersten Start nach dem WLAN-Verbinden** (und nach
+jedem Neustart): Das Gerät holt sich erst frische Daten für alle elf
+Widgets, bevor es anfängt, durchzuwechseln – je nach Verbindung und Anzahl
+aktivierter Widgets kann das einen Moment dauern. Die Uhr erscheint
+schnell, die anderen Widgets aber erst, wenn dieser erste Abruf
+abgeschlossen ist – das ist normal, kein Hänger.
+
 ## Tasten
 
 Die beiden eingebauten Tasten des Boards (GPIO0/BOOT und GPIO14) lassen
